@@ -1,0 +1,209 @@
+---
+title: "Deploying a Node.js App on AWS: A Comprehensive Guide"
+date: "2024-08-24"
+tags: ["AWS", "Node.js", "Deployment", "NGINX", "SSL"]
+lastmod: '2024-08-24'
+draft: false
+summary: A survey on the different methodologies used to generate structured output from LLMs, from model fine-tuning, to domain specific language, and schema engineering.
+images: ['/static/img/nodejs_deployment/thumbnail.jpg']
+layout: PostLayout
+---
+
+# Deploying a Node.js App on AWS: A Comprehensive Guide
+
+Are you ready to take your Node.js application to the next level? In this comprehensive guide, we'll walk you through the process of deploying your Node.js app on Amazon Web Services (AWS). We'll cover everything from setting up your AWS account to configuring NGINX as a reverse proxy and securing your application with an SSL certificate from Let's Encrypt.
+
+## Prerequisites
+
+Before we dive in, make sure you have:
+
+- A Node.js application ready for deployment
+- Basic knowledge of Unix commands
+- Familiarity with AWS services
+
+## Step 1: Create an AWS Account
+
+First things first, you'll need an AWS account. Head over to [https://aws.amazon.com/](https://aws.amazon.com/) and sign up for a free account if you haven't already.
+
+## Step 2: Launch an EC2 Instance
+
+Once you have your AWS account set up, it's time to create an EC2 instance:
+
+1. Log in to the AWS Management Console
+2. Navigate to the EC2 dashboard
+3. Click "Launch Instance"
+4. Choose Ubuntu Server as your Amazon Machine Image (AMI)
+5. Select an instance type (t2.micro is eligible for free tier)
+6. Configure instance details, add storage, and configure security group as needed
+7. Review and launch your instance
+8. Create a new key pair and download the .pem file
+
+### Connecting to Your EC2 Instance
+
+After your instance is up and running, you can connect to it using SSH:
+
+```bash
+ssh -i /path/to/your-key-pair.pem ec2-user@your-instance-public-dns
+```
+
+Replace `/path/to/your-key-pair.pem` with the actual path to your .pem file, and `your-instance-public-dns` with your EC2 instance's public DNS.
+
+## Step 3: Set Up Your Environment
+
+Now that you're connected to your EC2 instance, let's set up the environment for your Node.js app.
+
+### Install Node Version Manager (NVM) and Node.js
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+source ~/.nvm/nvm.sh
+nvm install node
+```
+
+### Clone Your Project Repository
+
+```bash
+git clone https://github.com/username/your-app-backend
+```
+
+Replace `username` and `your-app-backend` with your actual GitHub username and repository name.
+
+### Install and Configure PM2
+
+PM2 is a process manager for Node.js applications. Let's install and set it up:
+
+```bash
+npm install pm2 -g
+cd /path/to/your/application
+pm2 start server.js --name "YourAppName"
+pm2 save
+```
+
+**Note**: If you're using TypeScript, you can use `ts-node` with PM2:
+
+```bash
+pm2 start ./src/index.ts --interpreter ts-node
+```
+
+## Step 4: Configure AWS Security Group
+
+To allow traffic to your application, you need to configure the security group:
+
+1. Go to the EC2 Dashboard and select your instance
+2. Click on the "Security" tab
+3. Edit the inbound rules
+4. Add rules for HTTP (port 80) and HTTPS (port 443)
+5. Add a custom TCP rule for your application port (e.g., 8000)
+
+## Step 5: Set Up NGINX as a Reverse Proxy
+
+NGINX will act as a reverse proxy for your Node.js application.
+
+### Install NGINX
+
+```bash
+sudo apt update
+sudo apt install nginx -y
+```
+
+### Configure NGINX
+
+Create a new configuration file for your app:
+
+```bash
+sudo nano /etc/nginx/sites-available/your-app
+```
+
+Add the following configuration:
+
+```nginx
+server {
+    listen 80;
+    server_name your_domain_or_ip;
+
+    location / {
+        proxy_pass http://localhost:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+Enable the configuration and restart NGINX:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/your-app /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+## Step 6: Secure Your App with Let's Encrypt SSL
+
+Let's add HTTPS support to your application using Let's Encrypt.
+
+### Install Certbot
+
+```bash
+sudo apt update
+sudo apt install certbot python3-certbot-nginx -y
+```
+
+### Obtain an SSL Certificate
+
+```bash
+sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
+```
+
+Follow the prompts to complete the process.
+
+### Verify Auto-Renewal
+
+```bash
+sudo certbot renew --dry-run
+```
+
+## Step 7: Final Configuration and Testing
+
+Update your NGINX configuration to include SSL settings:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name yourdomain.com;
+
+    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+
+    location / {
+        proxy_pass http://localhost:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+
+server {
+    listen 80;
+    server_name yourdomain.com;
+    return 301 https://$server_name$request_uri;
+}
+```
+
+Restart NGINX to apply the changes:
+
+```bash
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+## Conclusion
+
+Congratulations! You've successfully deployed your Node.js application on AWS, set up NGINX as a reverse proxy, and secured it with an SSL certificate. Your application should now be accessible via HTTPS at your domain.
+
+Remember to keep your server updated and regularly check for any security advisories. Happy coding!
+
+---
+
+I hope you found this guide helpful. If you have any questions or run into issues, feel free to leave a comment below!
